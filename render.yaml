@@ -13,7 +13,3 @@ services:
         value: /data/workspace
       - key: OPENCLAW_GATEWAY_TOKEN
         generateValue: true
-      - key: ANTHROPIC_BASE_URL
-        value: https://anyrouter.top
-      - key: ANTHROPIC_AUTH_TOKEN
-        sync: false

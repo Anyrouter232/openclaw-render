@@ -8,8 +8,8 @@
     "mode": "merge",
     "providers": {
       "anyrouter": {
-        "baseUrl": "${ANTHROPIC_BASE_URL}",
-        "apiKey": "${ANTHROPIC_AUTH_TOKEN}",
+        "baseUrl": "https://anyrouter.top",
+        "apiKey": "sk-Dw3Y6rpkHZ0IgXlx4NKTDIZedzUwoh2oKemkAQjgIrKVBQ0n",
         "api": "anthropic-messages",
         "models": [
           {
