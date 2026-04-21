@@ -4,7 +4,7 @@ ENV NODE_ENV=production
 ENV OPENCLAW_GATEWAY_PORT=8080
 ENV OPENCLAW_STATE_DIR=/data/.openclaw
 ENV OPENCLAW_WORKSPACE_DIR=/data/workspace
-ENV OPENCLAW_GATEWAY_TOKEN=openclaw-render-zahir-2026
+ENV OPENCLAW_GATEWAY_TOKEN=openclaw_bef9ac35e288d42cd95c2c0208da98c1a7fe14166fc39d7b
 
 RUN npm install -g --omit=dev --no-audit --no-fund openclaw@2026.4.15
 
