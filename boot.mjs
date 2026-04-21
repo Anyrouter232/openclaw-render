@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 const publicPort = Number(process.env.PORT || process.env.OPENCLAW_GATEWAY_PORT || 8080);
 const internalPort = Number(process.env.OPENCLAW_INTERNAL_PORT || 18789);
 const host = "127.0.0.1";
-const bootVersion = "2026-04-21.4";
+const bootVersion = "2026-04-21.5";
 
 let backendReady = false;
 const recentLogs = [];
@@ -155,7 +155,11 @@ const server = http.createServer((req, res) => {
     res.end("OpenClaw backend timed out. Refresh in a few seconds.\n");
   });
 
-  req.pipe(proxyReq);
+  if (req.method === "GET" || req.method === "HEAD") {
+    proxyReq.end();
+  } else {
+    req.pipe(proxyReq);
+  }
 });
 
 server.on("upgrade", (req, socket, head) => {
