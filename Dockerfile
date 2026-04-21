@@ -1,11 +1,11 @@
-FROM node:24-bookworm-slim
+FROM node:24-bookworm
 
 ENV NODE_ENV=production
 ENV OPENCLAW_GATEWAY_PORT=8080
 ENV OPENCLAW_STATE_DIR=/data/.openclaw
 ENV OPENCLAW_WORKSPACE_DIR=/data/workspace
 
-RUN npm install -g openclaw@2026.4.15
+RUN npm install -g --omit=dev --no-audit --no-fund openclaw@2026.4.15
 
 WORKDIR /app
 COPY config/openclaw.json /app/openclaw.json
