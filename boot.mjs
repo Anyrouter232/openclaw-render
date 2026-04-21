@@ -5,9 +5,20 @@ import { spawn } from "node:child_process";
 const publicPort = Number(process.env.PORT || process.env.OPENCLAW_GATEWAY_PORT || 8080);
 const internalPort = Number(process.env.OPENCLAW_INTERNAL_PORT || 18789);
 const host = "127.0.0.1";
-const bootVersion = "2026-04-21.2";
+const bootVersion = "2026-04-21.3";
 
 let backendReady = false;
+const recentLogs = [];
+
+function rememberLog(source, chunk) {
+  const lines = chunk
+    .toString()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => `[${source}] ${line}`);
+  recentLogs.push(...lines);
+  while (recentLogs.length > 80) recentLogs.shift();
+}
 
 const openclaw = spawn(
   "openclaw",
@@ -29,9 +40,19 @@ const openclaw = spawn(
       ...process.env,
       OPENCLAW_GATEWAY_PORT: String(internalPort),
     },
-    stdio: ["ignore", "inherit", "inherit"],
+    stdio: ["ignore", "pipe", "pipe"],
   },
 );
+
+openclaw.stdout.on("data", (chunk) => {
+  rememberLog("stdout", chunk);
+  process.stdout.write(chunk);
+});
+
+openclaw.stderr.on("data", (chunk) => {
+  rememberLog("stderr", chunk);
+  process.stderr.write(chunk);
+});
 
 openclaw.on("exit", (code, signal) => {
   console.error(`[boot] openclaw exited code=${code ?? "null"} signal=${signal ?? "null"}`);
@@ -80,6 +101,12 @@ const server = http.createServer((req, res) => {
         hasGatewayToken: Boolean(process.env.OPENCLAW_GATEWAY_TOKEN),
       }),
     );
+    return;
+  }
+
+  if (req.url === "/__logs") {
+    res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+    res.end(recentLogs.join("\n") + "\n");
     return;
   }
 

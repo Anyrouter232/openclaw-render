@@ -8,8 +8,6 @@ BOOT_SCRIPT="${OPENCLAW_BOOT_SCRIPT:-/app/boot.mjs}"
 
 mkdir -p "$STATE_DIR" "$WORKSPACE_DIR"
 
-if [ ! -f "$STATE_DIR/openclaw.json" ]; then
-  cp "$CONFIG_SOURCE" "$STATE_DIR/openclaw.json"
-fi
+cp "$CONFIG_SOURCE" "$STATE_DIR/openclaw.json"
 
 exec node "$BOOT_SCRIPT"
