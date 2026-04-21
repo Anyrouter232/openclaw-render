@@ -1,10 +1,11 @@
+import http from "node:http";
 import net from "node:net";
 import { spawn } from "node:child_process";
 
 const publicPort = Number(process.env.PORT || process.env.OPENCLAW_GATEWAY_PORT || 8080);
 const internalPort = Number(process.env.OPENCLAW_INTERNAL_PORT || 18789);
 const host = "127.0.0.1";
-const bootVersion = "2026-04-21.6";
+const bootVersion = "2026-04-22.1";
 const token = process.env.OPENCLAW_GATEWAY_TOKEN || "openclaw-render-zahir-2026";
 const recentLogs = [];
 let backendReady = false;
@@ -58,17 +59,6 @@ openclaw.on("exit", (code, signal) => {
   process.exit(code ?? 1);
 });
 
-function httpResponse(status, contentType, body) {
-  return [
-    `HTTP/1.1 ${status}`,
-    `content-type: ${contentType}`,
-    `content-length: ${Buffer.byteLength(body)}`,
-    "connection: close",
-    "",
-    body,
-  ].join("\r\n");
-}
-
 function canConnect() {
   return new Promise((resolve) => {
     const socket = net.connect({ host, port: internalPort });
@@ -92,90 +82,129 @@ async function refreshBackendReady() {
 setInterval(refreshBackendReady, 3000).unref();
 refreshBackendReady();
 
-function getPath(buffer) {
-  const firstLine = buffer.toString("latin1", 0, Math.min(buffer.length, 4096)).split("\r\n", 1)[0] || "";
-  const parts = firstLine.split(" ");
-  return parts.length >= 2 ? parts[1] : "";
-}
+const server = http.createServer((req, res) => {
+  const urlPath = req.url || "/";
 
-function handleLocalRoute(path, client) {
-  if (path === "/health" || path === "/healthz") {
-    client.end(
-      httpResponse(
-        "200 OK",
-        "application/json",
-        JSON.stringify({ ok: true, status: backendReady ? "live" : "booting", bootVersion }),
-      ),
-    );
-    return true;
+  if (urlPath === "/health" || urlPath === "/healthz") {
+    const body = JSON.stringify({ ok: true, status: backendReady ? "live" : "booting", bootVersion });
+    res.writeHead(200, {
+      "content-type": "application/json",
+      "content-length": Buffer.byteLength(body),
+    });
+    res.end(body);
+    return;
   }
 
-  if (path === "/__debug") {
-    client.end(
-      httpResponse(
-        "200 OK",
-        "application/json",
-        JSON.stringify({
-          ok: true,
-          bootVersion,
-          backendReady,
-          publicPort,
-          internalPort,
-          hasGatewayToken: Boolean(token),
-        }),
-      ),
-    );
-    return true;
+  if (urlPath === "/__debug") {
+    const body = JSON.stringify({
+      ok: true,
+      bootVersion,
+      backendReady,
+      publicPort,
+      internalPort,
+      hasGatewayToken: Boolean(token),
+      recentLogs: recentLogs.slice(-40),
+    });
+    res.writeHead(200, {
+      "content-type": "application/json",
+      "content-length": Buffer.byteLength(body),
+    });
+    res.end(body);
+    return;
   }
 
-  if (path === "/__logs") {
-    client.end(httpResponse("200 OK", "text/plain; charset=utf-8", `${recentLogs.join("\n")}\n`));
-    return true;
+  if (urlPath === "/__logs") {
+    const body = `${recentLogs.join("\n")}\n`;
+    res.writeHead(200, {
+      "content-type": "text/plain; charset=utf-8",
+      "content-length": Buffer.byteLength(body),
+    });
+    res.end(body);
+    return;
   }
 
-  return false;
-}
+  if (!backendReady) {
+    const body = JSON.stringify({ ok: false, status: "booting", bootVersion });
+    res.writeHead(503, {
+      "content-type": "application/json",
+      "content-length": Buffer.byteLength(body),
+      "retry-after": "5",
+    });
+    res.end(body);
+    return;
+  }
 
-const server = net.createServer((client) => {
-  let buffered = Buffer.alloc(0);
-  let connected = false;
+  const proxyReq = http.request(
+    {
+      host,
+      port: internalPort,
+      method: req.method,
+      path: req.url,
+      headers: req.headers,
+    },
+    (proxyRes) => {
+      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+      proxyRes.pipe(res);
+    },
+  );
 
-  client.setTimeout(60000);
-
-  client.on("data", (chunk) => {
-    if (connected) return;
-    buffered = Buffer.concat([buffered, chunk]);
-    if (!buffered.includes(Buffer.from("\r\n\r\n")) && buffered.length < 65536) return;
-
-    const path = getPath(buffered);
-    if (handleLocalRoute(path, client)) return;
-
-    if (!backendReady) {
-      client.end(httpResponse("503 Service Unavailable", "text/plain; charset=utf-8", "OpenClaw is starting. Refresh in a few seconds.\n"));
-      return;
+  proxyReq.on("error", (err) => {
+    if (!res.headersSent) {
+      const body = JSON.stringify({ ok: false, error: "backend_unavailable", message: err.message });
+      res.writeHead(502, {
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(body),
+      });
+      res.end(body);
+    } else {
+      res.destroy();
     }
-
-    connected = true;
-    const backend = net.connect({ host, port: internalPort }, () => {
-      backend.write(buffered);
-      client.pipe(backend);
-      backend.pipe(client);
-    });
-
-    backend.on("error", () => {
-      if (!client.destroyed) {
-        client.end(httpResponse("502 Bad Gateway", "text/plain; charset=utf-8", "OpenClaw backend unavailable.\n"));
-      }
-    });
-    backend.on("close", () => client.destroy());
-    client.on("close", () => backend.destroy());
   });
 
-  client.on("timeout", () => client.destroy());
+  req.pipe(proxyReq);
+});
+
+server.on("upgrade", (req, clientSocket, head) => {
+  if (!backendReady) {
+    clientSocket.write(
+      "HTTP/1.1 503 Service Unavailable\r\n" +
+        "content-type: application/json\r\n" +
+        "connection: close\r\n" +
+        "\r\n" +
+        JSON.stringify({ ok: false, status: "booting", bootVersion }),
+    );
+    clientSocket.destroy();
+    return;
+  }
+
+  const backendSocket = net.connect(internalPort, host);
+  backendSocket.on("connect", () => {
+    const lines = [`${req.method} ${req.url} HTTP/${req.httpVersion}`];
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (Array.isArray(value)) {
+        for (const v of value) lines.push(`${key}: ${v}`);
+      } else if (value !== undefined) {
+        lines.push(`${key}: ${value}`);
+      }
+    }
+    backendSocket.write(lines.join("\r\n") + "\r\n\r\n");
+    if (head && head.length) backendSocket.write(head);
+    backendSocket.pipe(clientSocket);
+    clientSocket.pipe(backendSocket);
+  });
+
+  backendSocket.on("error", () => clientSocket.destroy());
+  clientSocket.on("error", () => backendSocket.destroy());
+});
+
+server.on("clientError", (err, socket) => {
+  socket.destroy();
 });
 
 server.listen(publicPort, "0.0.0.0", () => {
-  console.log(`[boot] tcp pass-through listening on 0.0.0.0:${publicPort}; OpenClaw backend ${host}:${internalPort}`);
+  console.log(
+    `[boot] http+ws proxy listening on 0.0.0.0:${publicPort}; OpenClaw backend ${host}:${internalPort}`,
+  );
 });
 
 function shutdown(signal) {
