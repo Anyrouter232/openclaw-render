@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: openclaw
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: OPENCLAW_GATEWAY_PORT
+        value: "8080"
+      - key: OPENCLAW_STATE_DIR
+        value: /data/.openclaw
+      - key: OPENCLAW_WORKSPACE_DIR
+        value: /data/workspace
+      - key: OPENCLAW_GATEWAY_TOKEN
+        generateValue: true
+      - key: ANTHROPIC_BASE_URL
+        value: https://anyrouter.top
+      - key: ANTHROPIC_AUTH_TOKEN
+        sync: false
