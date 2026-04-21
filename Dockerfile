@@ -9,6 +9,7 @@ RUN npm install -g --omit=dev --no-audit --no-fund openclaw@2026.4.15
 
 WORKDIR /app
 COPY config/openclaw.json /app/openclaw.json
+COPY boot.mjs /app/boot.mjs
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
