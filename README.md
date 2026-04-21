@@ -8,6 +8,10 @@ Create a Render Blueprint from this repo. The service exposes `/health` for Rend
 
 Free Render services can spin down and do not provide persistent disk. Upgrade the `plan` and add a disk in `render.yaml` if you need durable OpenClaw state.
 
+Gateway token:
+
+- `openclaw-render-zahir-2026`
+
 ## Deploy steps
 
 1. Open `https://render.com/deploy?repo=https://github.com/Anyrouter232/openclaw-render`.

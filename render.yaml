@@ -12,4 +12,4 @@ services:
       - key: OPENCLAW_WORKSPACE_DIR
         value: /data/workspace
       - key: OPENCLAW_GATEWAY_TOKEN
-        generateValue: true
+        value: openclaw-render-zahir-2026

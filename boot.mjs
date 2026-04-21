@@ -5,12 +5,25 @@ import { spawn } from "node:child_process";
 const publicPort = Number(process.env.PORT || process.env.OPENCLAW_GATEWAY_PORT || 8080);
 const internalPort = Number(process.env.OPENCLAW_INTERNAL_PORT || 18789);
 const host = "127.0.0.1";
+const bootVersion = "2026-04-21.2";
 
 let backendReady = false;
 
 const openclaw = spawn(
   "openclaw",
-  ["gateway", "run", "--bind", "lan", "--port", String(internalPort), "--allow-unconfigured"],
+  [
+    "gateway",
+    "run",
+    "--bind",
+    "lan",
+    "--port",
+    String(internalPort),
+    "--auth",
+    "token",
+    "--token",
+    process.env.OPENCLAW_GATEWAY_TOKEN || "openclaw-render-zahir-2026",
+    "--allow-unconfigured",
+  ],
   {
     env: {
       ...process.env,
@@ -51,7 +64,22 @@ refreshBackendReady();
 const server = http.createServer((req, res) => {
   if (req.url === "/health" || req.url === "/healthz") {
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true, status: backendReady ? "live" : "booting" }));
+    res.end(JSON.stringify({ ok: true, status: backendReady ? "live" : "booting", bootVersion }));
+    return;
+  }
+
+  if (req.url === "/__debug") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(
+      JSON.stringify({
+        ok: true,
+        bootVersion,
+        backendReady,
+        publicPort,
+        internalPort,
+        hasGatewayToken: Boolean(process.env.OPENCLAW_GATEWAY_TOKEN),
+      }),
+    );
     return;
   }
 
