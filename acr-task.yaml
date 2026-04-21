@@ -1,0 +1,21 @@
+version: v1.1.0
+steps:
+  # 1. Build the image from the Dockerfile in the repo root
+  - id: build
+    build: -t $Registry/openclaw:$ID -t $Registry/openclaw:latest -f Dockerfile .
+
+  # 2. Push both tags to openclawbd.azurecr.io
+  - id: push
+    push:
+      - $Registry/openclaw:$ID
+      - $Registry/openclaw:latest
+    when:
+      - build
+
+  # 3. Update the Container App to pull the freshly-pushed image
+  #    The task's system-assigned managed identity is granted Contributor on
+  #    the Container App (see az-setup.sh).
+  - id: deploy
+    cmd: mcr.microsoft.com/azure-cli:latest sh -c "az login --identity --only-show-errors && az containerapp update --name openclaw --resource-group openclaw-rg --image $Registry/openclaw:$ID --only-show-errors"
+    when:
+      - push
