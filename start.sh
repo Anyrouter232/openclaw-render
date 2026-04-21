@@ -11,4 +11,4 @@ if [ ! -f "$STATE_DIR/openclaw.json" ]; then
   cp /app/openclaw.json "$STATE_DIR/openclaw.json"
 fi
 
-exec openclaw gateway --bind lan --port "$PORT" --allow-unconfigured
+exec openclaw gateway run --bind lan --port "$PORT" --allow-unconfigured
