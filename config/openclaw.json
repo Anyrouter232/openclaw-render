@@ -18,8 +18,8 @@
         "api": "anthropic-messages",
         "models": [
           {
-            "id": "claude-opus-4-6",
-            "name": "Claude Opus 4.6",
+            "id": "claude-opus-4-7",
+            "name": "Claude Opus 4.7",
             "reasoning": true,
             "input": [
               "text",
@@ -42,7 +42,7 @@
     "defaults": {
       "workspace": "/data/workspace",
       "model": {
-        "primary": "anyrouter/claude-opus-4-6"
+        "primary": "anyrouter/claude-opus-4-7"
       }
     }
   }
