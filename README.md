@@ -11,3 +11,15 @@ Required secret in Render:
 - `ANTHROPIC_AUTH_TOKEN`
 
 Free Render services can spin down and do not provide persistent disk. Upgrade the `plan` and add a disk in `render.yaml` if you need durable OpenClaw state.
+
+## Deploy steps
+
+1. Open `https://render.com/deploy?repo=https://github.com/Anyrouter232/openclaw-render`.
+2. Select the free plan when Render asks for confirmation.
+3. Add `ANTHROPIC_AUTH_TOKEN` as a secret environment variable.
+4. Deploy the Blueprint.
+5. After deploy, open `https://<service-name>.onrender.com/health` and confirm it returns healthy.
+
+## Uptime Robot
+
+Create an HTTPS monitor pointed at `https://<service-name>.onrender.com/health` with a 5-minute interval. This checks the OpenClaw service health endpoint only.
