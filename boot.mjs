@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 const publicPort = Number(process.env.PORT || process.env.OPENCLAW_GATEWAY_PORT || 8080);
 const internalPort = Number(process.env.OPENCLAW_INTERNAL_PORT || 18789);
 const host = "127.0.0.1";
-const bootVersion = "2026-04-21.3";
+const bootVersion = "2026-04-21.4";
 
 let backendReady = false;
 const recentLogs = [];
@@ -43,6 +43,26 @@ const openclaw = spawn(
     stdio: ["ignore", "pipe", "pipe"],
   },
 );
+
+function proxyHeaders(req) {
+  const headers = { ...req.headers };
+  for (const key of [
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+  ]) {
+    delete headers[key];
+  }
+  headers.host = `${host}:${internalPort}`;
+  headers["x-forwarded-host"] = req.headers.host || "";
+  headers["x-forwarded-proto"] = "https";
+  return headers;
+}
 
 openclaw.stdout.on("data", (chunk) => {
   rememberLog("stdout", chunk);
@@ -116,7 +136,7 @@ const server = http.createServer((req, res) => {
       port: internalPort,
       method: req.method,
       path: req.url,
-      headers: req.headers,
+      headers: proxyHeaders(req),
     },
     (proxyRes) => {
       res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
@@ -124,9 +144,15 @@ const server = http.createServer((req, res) => {
     },
   );
 
+  proxyReq.setTimeout(30000, () => {
+    proxyReq.destroy(new Error("backend timeout"));
+  });
+
   proxyReq.on("error", () => {
-    res.writeHead(503, { "content-type": "text/plain; charset=utf-8", "retry-after": "10" });
-    res.end("OpenClaw is starting. Refresh in a few seconds.\n");
+    if (!res.headersSent) {
+      res.writeHead(504, { "content-type": "text/plain; charset=utf-8", "retry-after": "10" });
+    }
+    res.end("OpenClaw backend timed out. Refresh in a few seconds.\n");
   });
 
   req.pipe(proxyReq);
