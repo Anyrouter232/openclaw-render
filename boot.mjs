@@ -26,12 +26,23 @@ openclaw.on("exit", (code, signal) => {
 });
 
 async function refreshBackendReady() {
-  try {
-    const res = await fetch(`http://${host}:${internalPort}/health`);
-    backendReady = res.ok;
-  } catch {
-    backendReady = false;
-  }
+  backendReady = await canConnect();
+}
+
+function canConnect() {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port: internalPort });
+    socket.setTimeout(1000);
+    socket.on("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on("timeout", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on("error", () => resolve(false));
+  });
 }
 
 setInterval(refreshBackendReady, 3000).unref();
@@ -41,12 +52,6 @@ const server = http.createServer((req, res) => {
   if (req.url === "/health" || req.url === "/healthz") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, status: backendReady ? "live" : "booting" }));
-    return;
-  }
-
-  if (!backendReady) {
-    res.writeHead(503, { "content-type": "text/plain; charset=utf-8", "retry-after": "10" });
-    res.end("OpenClaw is starting. Refresh in a few seconds.\n");
     return;
   }
 
@@ -65,19 +70,14 @@ const server = http.createServer((req, res) => {
   );
 
   proxyReq.on("error", () => {
-    res.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
-    res.end("OpenClaw backend is unavailable.\n");
+    res.writeHead(503, { "content-type": "text/plain; charset=utf-8", "retry-after": "10" });
+    res.end("OpenClaw is starting. Refresh in a few seconds.\n");
   });
 
   req.pipe(proxyReq);
 });
 
 server.on("upgrade", (req, socket, head) => {
-  if (!backendReady) {
-    socket.destroy();
-    return;
-  }
-
   const backend = net.connect(internalPort, host, () => {
     backend.write(
       `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n` +
